@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Configuration Processor</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500&display=swap" rel="stylesheet"> <!-- Google Roboto Font -->
+ 
+    <style>
+        body {
+            font-family: 'Roboto', sans-serif;
+            background-color: #f4f7f6;
+            margin: 0;
+            padding: 0;
+            padding-top: 60px;
+        }
+        .navbar-custom {
+            background-color: #007bff;
+            color: white;
+            position: fixed;
+            top: 0;
+            width: 100%;
+            z-index: 1030;
+        }
+        .sidebar-custom {
+            background-color: #343a40;
+            color: white;
+            position: fixed;
+            top: 60px;
+            bottom: 0;
+            width: 220px;
+            padding-top: 20px;
+            overflow-y: auto;
+        }
+        .sidebar-custom a {
+            color: white;
+            padding: 10px 15px;
+            text-decoration: none;
+            display: block;
+            transition: background-color 0.2s ease;
+        }
+        .sidebar-custom a:hover {
+            background-color: #0056b3;
+            color: #fff;
+        }
+        .content-custom {
+            margin-left: 220px;
+            padding: 20px;
+        }
+        .container-custom {
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+        }
+        .btn-primary-custom {
+            background-color: #007bff;
+            border: none;
+            border-radius: 4px;
+            padding: 10px 20px;
+            color: #fff;
+            font-size: 16px;
+            transition: background-color 0.2s;
+            margin-top: 10px;
+            cursor: pointer;
+        }
+        .btn-primary-custom:hover {
+            background-color: #0056b3;
+        }
+        .table-custom {
+            margin-top: 20px;
+            border-collapse: collapse;
+        }
+        .table-custom th, .table-custom td {
+            padding: 10px;
+            border: 1px solid #ddd;
+        }
+        .table-custom th {
+            background-color: #007bff;
+            color: white;
+        }
+        .spinner-custom {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 1050;
+        }
+        .file-upload-wrapper {
+            position: relative;
+            overflow: hidden;
+            margin: 5px;
+        }
+        .file-upload-input {
+            position: absolute;
+            top: 0;
+            right: 0;
+            min-width: 100%;
+            min-height: 100%;
+            text-align: right;
+            filter: alpha(opacity=0);
+            opacity: 0;
+            outline: none;
+            background: white;
+            cursor: inherit;
+            display: block;
+        }
+        .file-upload-input:hover {
+            border-color: #007bff;
+        }
+        .file-upload-button {
+            position: relative;
+            display: inline-block;
+            padding: 10px 20px;
+            color: #fff;
+            background-color: #007bff;
+            border: none;
+            border-radius: 4px;
+            font-size: 16px;
+            line-height: 1.5;
+            text-align: center;
+            cursor: pointer;
+            overflow: hidden;
+            transition: background-color 0.3s;
+        }
+        .file-upload-button:hover, 
+        .file-upload-button:focus {
+            background-color: #0056b3;
+        }
+
+
+        @media (max-width: 768px) {
+            .sidebar-custom {
+                width: 100%;
+                height: 60px;
+                overflow: hidden;
+                position: fixed;
+                bottom: 0;
+            }
+            .content-custom {
+                margin-left: 0;
+                margin-bottom: 60px;
+            }
+            .navbar-custom {
+                top: auto;
+                bottom: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark navbar-custom fixed-top">
+        <div class="container">
+            <a class="navbar-brand" href="#">Configuration Optimizer</a>
+        </div>
+    </nav>
+    <div class="sidebar-custom">
+        <a href="#">Matched Rule Conditions</a>
+    </div>
+    <div class="content-custom">
+        <div class="container-custom">
+            <h4>Matched Rule Conditions Finder</h4>
+            <p>Discover Rules with Similar Match Conditions</p>
+            <div class="alert alert-info" role="alert">
+                <strong>Note:</strong> The .edgerc file is stored temporarily and is associated with your session. The file and session data will be automatically deleted after 15 minutes of inactivity
+            </div>
+            
+            <div class="card">
+                <div id="output"></div>
+                <h7>Upload .edgerc File</h7>
+                <div class="file-upload-wrapper">
+                    <button class="file-upload-button" type="button">Choose File</button>
+                    <input type="file" class="file-upload-input" id="file-upload" onchange="handleFileChange()">
+                </div>
+            <form id="config-form">
+                <div class="form-group">
+                    <label for="config_name">Configuration Name:</label>
+                    <input type="text" class="form-control" id="config_name" name="config_name">
+                </div>
+                <div class="form-group">
+                    <label for="account_switch_key">Account Switch Key:</label>
+                    <input type="text" class="form-control" id="account_switch_key" name="account_switch_key">
+                </div>
+                <button type="submit" class="btn btn-primary-custom" id="submit-form">Analyze</button>
+            </form>
+            <div id="loading-spinner" class="spinner-custom">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="sr-only">Loading...</span>
+                </div>
+            </div>
+            <table class="table table-custom">
+                <thead>
+                    <tr>
+                        <th>Triggered Rule</th>
+                        <th>Matched Rule</th>
+                    </tr>
+                </thead>
+                <tbody id="rules-table-body"></tbody>
+            </table>
+        </div>
+    </div>
+</body>
+<script>
+    function uploadEdgercFile(file) {
+        var formData = new FormData();
+        formData.append('file', file);
+
+        fetch('/upload-edgerc', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Session expired or unauthorized access.');
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.message) {
+                document.getElementById('output').innerText = data.message;
+            } else {
+                document.getElementById('output').innerText = 'Error: ' + data.error;
+            }
+        })
+        .catch(error => {
+            document.getElementById('output').innerText = error.message;
+        });
+    }
+
+    function handleFileChange() {
+        var fileInput = document.getElementById('file-upload');
+        if (fileInput.files.length > 0) {
+            var file = fileInput.files[0];
+            uploadEdgercFile(file);
+        }
+    }
+
+    function checkSessionStatus() {
+        fetch('/check-session')
+        .then(response => {
+            if (!response.ok) {
+                // Session expired, clear cookie
+                document.cookie = "session_id=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+                console.log("Session cookie cleared");
+                // Optionally, reload the page to establish a new session
+                document.getElementById('output').innerText = 'Session expired. Please refresh the page or log in again.'; 
+            }
+        })
+        .catch(error => console.error('Error:', error));
+    }
+
+    // Poll every minute to check session status
+    setInterval(checkSessionStatus, 900000);
+
+    // Call it once when the page loads
+    checkSessionStatus();
+
+    // Function to populate the table with JSON data
+    function populateRulesTable(matchedRules) {
+        var tableBody = document.getElementById('rules-table-body');
+        tableBody.innerHTML = ''; // Clear the table body
+
+        matchedRules.forEach(function(rule) {
+            var row = document.createElement('tr');
+            var triggeredRuleCell = document.createElement('td');
+            var matchedRuleCell = document.createElement('td');
+            
+            triggeredRuleCell.textContent = rule.triggered_rule;
+            matchedRuleCell.textContent = rule.matched_rule;
+
+            row.appendChild(triggeredRuleCell);
+            row.appendChild(matchedRuleCell);
+            tableBody.appendChild(row);
+        });
+    }
+
+    document.getElementById('config-form').addEventListener('submit', function(event) {
+        event.preventDefault(); // Prevent the default form submission
+
+        var configName = document.getElementById('config_name').value;
+        var accountSwitchKey = document.getElementById('account_switch_key').value;
+        var submitButton = document.getElementById('submit-form'); // Get the submit button
+
+        if (!configName || !accountSwitchKey) {
+            document.getElementById('output').innerText = 'Both Configuration Name and Account Switch Key are required.';
+            return;
+        }
+
+        // Show the loading spinner
+        document.getElementById('loading-spinner').style.display = 'block';
+        submitButton.disabled = true; // Disable the submit butto
+
+
+        var formData = new FormData();
+        formData.append('config_name', configName);
+        formData.append('account_switch_key', accountSwitchKey);
+
+        fetch('/submit-config', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => {
+            document.getElementById('loading-spinner').style.display = 'none';
+            submitButton.disabled = false; // Re-enable the submit button
+            if (!response.ok) {
+                throw new Error('Server responded with an error');
+            }
+            return response.json();
+        })
+        .then(data => {
+            document.getElementById('output').innerText = data.message;
+            if (data.matched_rules && data.matched_rules.length > 0) {
+                populateRulesTable(data.matched_rules);
+            }
+        })
+        .catch(error => {
+            document.getElementById('loading-spinner').style.display = 'none';
+            submitButton.disabled = false; // Re-enable the submit button
+            document.getElementById('output').innerText = 'Error: ' + error.message;
+        });
+    });
+
+
+</script>
+</html>

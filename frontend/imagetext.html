@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Configuration Processor</title>
+    <!-- Bootstrap CSS and other head elements -->
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/index.css">
+</head>
+<body>
+    <div id="navbar-placeholder"></div>
+    <div id="sidebar-placeholder"></div>
+    <div class="content-custom">
+        <div class="container-custom">
+            <!-- Upload form -->
+            <div class="upload-form">
+                <h4>Upload an Image:</h4>
+                <form action="/uploadfile/" method="post" enctype="multipart/form-data">
+                    <div class="form-group">
+                        <input type="file" class="form-control-file" name="file" id="fileInput" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Upload</button>
+                    <!-- Spinner -->
+                    <div class="spinner-border text-primary" role="status" id="loading-spinner" style="display: none;">
+                      <span class="sr-only">Loading...</span>
+                    </div>
+                </form>
+            </div>
+            <!-- Section to display extracted text -->
+            <div id="extracted-text" style="margin-top: 20px;">
+                <h4>Extracted Text:</h4>
+                <textarea id="text-content" class="form-control" rows="10">Extracted text will be displayed here after uploading an image.</textarea>
+            </div>
+        </div>
+    </div>
+    <script src="/static/layout.js"></script>
+    <script>
+        document.addEventListener("DOMContentLoaded", function(){
+            const form = document.querySelector("form");
+            const spinner = document.getElementById("loading-spinner"); // Get the spinner
+
+            form.addEventListener("submit", function(e){
+                e.preventDefault();
+                const formData = new FormData(form);
+                
+                spinner.style.display = "block"; // Show the spinner
+
+                fetch("/uploadfile/", {
+                    method: "POST",
+                    body: formData,
+                })
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById("text-content").value = data.text;
+                    spinner.style.display = "none"; // Hide the spinner
+                })
+                .catch(error => {
+                    console.error("Error:", error);
+                    spinner.style.display = "none"; // Hide the spinner on error too
+                });
+            });
+        });
+    </script>
+</body>
+</html>

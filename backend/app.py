@@ -4,26 +4,44 @@ import shutil
 import asyncio
 import uuid
 import time
-from fastapi import FastAPI, File, UploadFile, Request, Query, BackgroundTasks
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi import FastAPI, File, Response, UploadFile, Request, Query, BackgroundTasks, HTTPException
+from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
+from starlette.middleware.base import BaseHTTPMiddleware
 from pathlib import Path
 from fastapi import Form
 import urllib.parse
 import subprocess
 import tempfile 
-import os
+import io
 import json
+import pytesseract
+from PIL import Image
 
 SESSION_TIMEOUT = 5900  # 5 seconds for testing
 session_last_access = {}
 
 TEMP_DIR = "/root/Audit/temp"
 MAX_FILE_SIZE = 1024 * 1024  # 1 MB limit
+DATASTREAM_DIR = 'datastream_logs'
+os.makedirs(DATASTREAM_DIR, exist_ok=True)
+
+pytesseract.pytesseract.tesseract_cmd = '/usr/bin/tesseract'  
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 app = FastAPI()
+
+# Calculate the path to the 'frontend' directory from 'backend/app.py'
+current_file_path = os.path.dirname(__file__)  # Path to the directory where app.py is located
+frontend_dir = os.path.join(current_file_path, '..', 'frontend')  # Navigate up one level and into 'frontend'
+
+# Serve static files from the 'frontend' directory
+app.mount("/static", StaticFiles(directory=frontend_dir), name="static")
+
+
+
 
 @app.on_event("startup")
 async def start_cleanup_task():
@@ -107,18 +125,63 @@ def search(directory):
     return results
 
 @app.middleware("http")
-async def log_requests(request: Request, call_next):
-    logger.info(f"Request: {request.method} {request.url}")
+async def log_request_data(request: Request, call_next):
+    session_id = request.headers.get("x-session-id")
+    if session_id:
+        session_dir = os.path.join(DATASTREAM_DIR, session_id)
+        os.makedirs(session_dir, exist_ok=True)
+        with open(os.path.join(session_dir, 'log.txt'), 'a') as f:
+            f.write(f"Logged request to {request.url.path}\n")
+    
     response = await call_next(request)
-    logger.info(f"Response: {response.status_code}")
     return response
+
 
 @app.get("/", response_class=HTMLResponse)
 async def read_root():
-    html_file_path = os.path.join(os.path.dirname(__file__), '..', 'frontend', 'index.html')
-    with open(html_file_path, 'r') as file:
-        html_content = file.read()
-    return HTMLResponse(content=html_content)
+    try:
+        html_file_path = os.path.join(frontend_dir, 'index.html')
+        with open(html_file_path, 'r') as file:
+            html_content = file.read()
+        return HTMLResponse(content=html_content)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Index.html not found")
+
+
+@app.get("/datastream", response_class=HTMLResponse)
+async def read_datastream(request: Request):
+    session_id = request.headers.get("x-session-id")
+    if not session_id:
+        session_id = str(uuid.uuid4())
+
+    try:
+        html_file_path = os.path.join(frontend_dir, 'datastream.html')
+        with open(html_file_path, 'r') as file:
+            html_content = file.read()
+            html_content = html_content.replace("<!--SESSION_ID-->", session_id)
+        
+        return HTMLResponse(content=html_content)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Datastream.html not found")
+
+
+@app.get("/image-text", response_class=HTMLResponse)
+async def read_datastream(request: Request):
+    try:
+        html_file_path = os.path.join(frontend_dir, 'imagetext.html')
+        with open(html_file_path, 'r') as file:
+            html_content = file.read()
+        return HTMLResponse(content=html_content)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="imagetext.html not found")
+    
+@app.post("/uploadfile/")
+async def create_upload_file(file: UploadFile = File(...)):
+    image_bytes = await file.read()
+    image = Image.open(io.BytesIO(image_bytes))
+    text = pytesseract.image_to_string(image)
+    return JSONResponse(content={"text": text})
+
 
 @app.post("/upload-edgerc")
 async def upload_edgerc(request: Request, file: UploadFile = File(...)):
@@ -158,6 +221,14 @@ async def upload_edgerc(request: Request, file: UploadFile = File(...)):
     except Exception as e:
         logger.error(f"An error occurred during file upload: {e}")
         return JSONResponse(status_code=500, content={"message": f"An error occurred: {e}"})
+
+@app.get("/{session_id}")
+async def get_logs(session_id: str):
+    session_log_path = os.path.join(DATASTREAM_DIR, session_id, 'log.txt')
+    if os.path.exists(session_log_path):
+        return FileResponse(session_log_path)
+    else:
+        return Response(content="No logs found for this session.", status_code=404)
 
 @app.post("/submit-config")
 async def submit_config(request: Request, config_name: str = Form(...), account_switch_key: str = Form(...)):

@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Configuration Processor</title>
+    <!-- Bootstrap CSS and other head elements -->
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/index.css">
+</head>
+<body>
+    <div id="navbar-placeholder"></div>
+    <div id="sidebar-placeholder"></div>
+    <div class="content-custom">
+        <div class="alert alert-warning" role="alert">
+            <strong>Warning:</strong> Your session will be removed after 24 hours or after the browser closes.
+        </div>
+        <div class="container-custom">
+            <p>Your session ID: <span id="session-id">Loading...</span></p>
+            <!-- Added section for displaying logs -->
+            <div id="session-logs">
+                <h4>Session Logs:</h4>
+                <pre id="logs-content">Logs will be displayed here.</pre>
+            </div>
+        </div>
+    </div>
+    <script src="/static/layout.js"></script>
+    <script>
+        function manageSessionId() {
+            let sessionId = localStorage.getItem('session_id');
+            let timestamp = localStorage.getItem('session_timestamp');
+            let currentTime = new Date().getTime();
+
+            if (!sessionId || !timestamp || currentTime - parseInt(timestamp) >= 24 * 3600 * 1000) {
+                sessionId = generateSessionId();
+                timestamp = currentTime.toString();
+                localStorage.setItem('session_id', sessionId);
+                localStorage.setItem('session_timestamp', timestamp);
+            }
+
+            document.getElementById('session-id').textContent = sessionId;
+            fetchSessionLogs(sessionId); // Fetch and display logs for this session
+        }
+
+        function generateSessionId() {
+            return 'xxxx-xxxx-4xxx-yxxx-xxxx-yyyy'.replace(/[xy]/g, function(c) {
+                var r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
+                return v.toString(16);
+            });
+        }
+
+        function fetchSessionLogs(sessionId) {
+            fetch(`/${sessionId}`)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Logs not found');
+                    }
+                    return response.text();
+                })
+                .then(logs => {
+                    document.getElementById('logs-content').textContent = logs;
+                })
+                .catch(error => {
+                    console.error('Failed to fetch session logs:', error);
+                    document.getElementById('logs-content').textContent = 'Failed to fetch logs.';
+                });
+        }
+
+        window.onload = manageSessionId;
+    </script>
+</body>
+</html>

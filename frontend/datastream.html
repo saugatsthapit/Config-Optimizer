@@ -16,11 +16,6 @@
         </div>
         <div class="container-custom">
             <p>Your session ID: <span id="session-id">Loading...</span></p>
-            <!-- Added section for displaying logs -->
-            <div id="session-logs">
-                <h4>Session Logs:</h4>
-                <pre id="logs-content">Logs will be displayed here.</pre>
-            </div>
         </div>
     </div>
     <script src="/static/layout.js"></script>
@@ -39,6 +34,7 @@
 
             document.getElementById('session-id').textContent = sessionId;
             fetchSessionLogs(sessionId); // Fetch and display logs for this session
+            fetchHeaders(sessionId); // Fetch and display headers for this session
         }
 
         function generateSessionId() {
@@ -47,24 +43,6 @@
                 return v.toString(16);
             });
         }
-
-        function fetchSessionLogs(sessionId) {
-            fetch(`/${sessionId}`)
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error('Logs not found');
-                    }
-                    return response.text();
-                })
-                .then(logs => {
-                    document.getElementById('logs-content').textContent = logs;
-                })
-                .catch(error => {
-                    console.error('Failed to fetch session logs:', error);
-                    document.getElementById('logs-content').textContent = 'Failed to fetch logs.';
-                });
-        }
-
         window.onload = manageSessionId;
     </script>
 </body>

@@ -8,6 +8,7 @@ from fastapi import FastAPI, File, Response, UploadFile, Request, Query, Backgro
 from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
+from fastapi.middleware.cors import CORSMiddleware
 from pathlib import Path
 from fastapi import Form
 import urllib.parse
@@ -17,6 +18,9 @@ import io
 import json
 import pytesseract
 from PIL import Image
+from db import database
+
+from main_app.services.match import search
 
 SESSION_TIMEOUT = 5900  # 5 seconds for testing
 session_last_access = {}
@@ -33,6 +37,15 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI()
 
+# Set up CORS middleware for the FastAPI app
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:8000", "http://23.239.9.70", "http://localhost", "http://127.0.0.1"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 # Calculate the path to the 'frontend' directory from 'backend/app.py'
 current_file_path = os.path.dirname(__file__)  # Path to the directory where app.py is located
 frontend_dir = os.path.join(current_file_path, '..', 'frontend')  # Navigate up one level and into 'frontend'
@@ -46,6 +59,11 @@ app.mount("/static", StaticFiles(directory=frontend_dir), name="static")
 @app.on_event("startup")
 async def start_cleanup_task():
     asyncio.create_task(cleanup_sessions())
+    await database.connect()
+    
+@app.on_event("shutdown")
+async def shutdown():
+    await database.disconnect()
 
 # Add a new endpoint to check the session status
 @app.get("/check-session")
@@ -73,66 +91,11 @@ async def cleanup_sessions():
             logger.error(f"An error occurred in cleanup_sessions: {e}")
 
 
-def read_json_file(file_path):
-    try:
-        with open(file_path, 'r') as file:
-            return json.load(file)
-    except (FileNotFoundError, json.JSONDecodeError):
-        return None
 
-def find_matched_rules(directory, rule_criteria, exclude_rule_name=None):
-    matched_rules = []
-    if not rule_criteria:
-        return matched_rules
 
-    for filename in os.listdir(directory):
-        if filename.endswith('.json'):
-            file_path = os.path.join(directory, filename)
-            data = read_json_file(file_path)
-            if data is not None:
-                def check_rule(rule, parent_name=''):
-                    if 'name' in rule and rule.get('criteria', []) == rule_criteria and rule['name'] != exclude_rule_name:
-                        matched_name = f"Parent: {rule['name']}" if not parent_name else f"- Child of {parent_name}: {rule['name']}"
-                        matched_rules.append(matched_name)
-                    for child in rule.get('children', []):
-                        check_rule(child, rule.get('name', 'Unknown'))
-
-                check_rule(data)
-    return matched_rules
-
-def search(directory):
-    results = []
-
-    for filename in os.listdir(directory):
-        if filename.endswith('.json'):
-            file_path = os.path.join(directory, filename)
-            data = read_json_file(file_path)
-            if data is not None:
-                def process_rule(rule, parent_name=''):
-                    if 'name' in rule and rule.get('criteria', []):
-                        rule_name = rule['name']
-                        matched_rules = find_matched_rules(directory, rule.get('criteria', []), rule['name'])
-                        for matched_rule in matched_rules:
-                            results.append({
-                                'triggered_rule': rule_name,
-                                'matched_rule': matched_rule
-                            })
-                        for child in rule.get('children', []):
-                            process_rule(child, rule_name)
-
-                process_rule(data)
-    
-    return results
 
 @app.middleware("http")
 async def log_request_data(request: Request, call_next):
-    session_id = request.headers.get("x-session-id")
-    if session_id:
-        session_dir = os.path.join(DATASTREAM_DIR, session_id)
-        os.makedirs(session_dir, exist_ok=True)
-        with open(os.path.join(session_dir, 'log.txt'), 'a') as f:
-            f.write(f"Logged request to {request.url.path}\n")
-    
     response = await call_next(request)
     return response
 
@@ -174,6 +137,22 @@ async def read_datastream(request: Request):
         return HTMLResponse(content=html_content)
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="imagetext.html not found")
+    
+@app.get("/ai-search", response_class=HTMLResponse)
+async def read_datastream(request: Request):
+    session_id = request.headers.get("x-session-id")
+    if not session_id:
+        session_id = str(uuid.uuid4())
+
+    try:
+        html_file_path = os.path.join(frontend_dir, 'chat.html')
+        with open(html_file_path, 'r') as file:
+            html_content = file.read()
+            html_content = html_content.replace("<!--SESSION_ID-->", session_id)
+        
+        return HTMLResponse(content=html_content)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="chat.html not found")
     
 @app.post("/uploadfile/")
 async def create_upload_file(file: UploadFile = File(...)):
@@ -222,13 +201,37 @@ async def upload_edgerc(request: Request, file: UploadFile = File(...)):
         logger.error(f"An error occurred during file upload: {e}")
         return JSONResponse(status_code=500, content={"message": f"An error occurred: {e}"})
 
-@app.get("/{session_id}")
-async def get_logs(session_id: str):
-    session_log_path = os.path.join(DATASTREAM_DIR, session_id, 'log.txt')
-    if os.path.exists(session_log_path):
-        return FileResponse(session_log_path)
-    else:
-        return Response(content="No logs found for this session.", status_code=404)
+@app.get("/headers/{session_id}")
+async def get_headers(session_id: str):
+    query = """
+    SELECT request_id, request_headers, response_headers FROM headers WHERE session_id = :session_id
+    """
+    headers_list = await database.fetch_all(query, values={"session_id": session_id})
+    return headers_list
+
+
+@app.route("/{session_id}")
+async def webhook_endpoint(session_id: str, request: Request):
+    request_id = str(uuid.uuid4())  # Generate a unique request ID
+    request_headers = dict(request.headers)
+    # Simulate a response header for demonstration
+    response_headers = {"Content-Type": "application/json"}
+
+    # Log headers to database
+    query = """
+    INSERT INTO headers (request_id, session_id, request_headers, response_headers)
+    VALUES (:request_id, :session_id, :request_headers, :response_headers)
+    """
+    await database.execute(query, values={
+        "request_id": request_id,
+        "session_id": session_id,
+        "request_headers": str(request_headers),
+        "response_headers": str(response_headers)
+    })
+
+    # Your logic to handle the webhook payload goes here
+
+    return JSONResponse(content={"message": "Webhook received"}, headers=response_headers)
 
 @app.post("/submit-config")
 async def submit_config(request: Request, config_name: str = Form(...), account_switch_key: str = Form(...)):

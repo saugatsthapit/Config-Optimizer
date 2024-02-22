@@ -19,6 +19,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 <a href="/">Matched Rule Conditions</a>
                 <a href="/datastream">DataStream</a> <!-- New Sidebar Menu Item -->
                 <a href="/image-text">Image-to-Text</a> <!-- New Sidebar Menu Item -->
+                <a href="/ai-search">AI Search</a>
             </div>`;
     }
 });

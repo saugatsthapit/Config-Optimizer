@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Enhanced Chat Interface</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/index.css">
+    <style>
+        body, html {
+            height: 100%;
+            margin: 0;
+            font-family: 'Roboto', sans-serif;
+        }
+        .chat-container {
+            display: flex;
+            flex-direction: column;
+            height: 90vh;
+            max-height: 90vh;
+            overflow: hidden;
+            border: 1px solid #ccc;
+            margin: 20px auto;
+            border-radius: 5px;
+            width: 60%;
+        }
+        .chat-messages {
+            flex: 1;
+            padding: 10px;
+            overflow-y: auto;
+            background-color: #f9f9f9;
+        }
+        .chat-input {
+            border-top: 1px solid #ccc;
+            padding: 10px;
+            background-color: #fff;
+        }
+        .message {
+            padding: 10px;
+            border-radius: 20px;
+            margin-bottom: 8px;
+            display: block; /* Ensures each message is on a new line */
+            clear: both; /* Prevents side-by-side display */
+            max-width: 80%;
+            word-wrap: break-word; /* Prevents long words from overflowing */
+        }
+        .sender {
+            background-color: #007bff;
+            color: #fff;
+            margin-left: auto;
+            border-bottom-right-radius: 0;
+            float: right;
+        }
+        .receiver {
+            background-color: #e9ecef;
+            border-bottom-left-radius: 0;
+            float: left;
+        }
+        .timestamp {
+            display: block;
+            font-size: 0.75em;
+            margin-top: 5px;
+            font-style: italic;
+            text-align: right;
+        }
+        .chat-messages:after {
+            content: "";
+            display: table;
+            clear: both;
+        }
+    </style>
+</head>
+<body>
+    <div id="navbar-placeholder"></div>
+    <div id="sidebar-placeholder"></div>
+    <div class="content-custom">
+        <div class="chat-container">
+            <div class="chat-messages" id="chat-messages">
+                <!-- Messages will be displayed here -->
+            </div>
+            <div class="chat-input">
+                <input type="text" id="message-input" placeholder="Type a message..." class="form-control" onkeypress="if(event.keyCode == 13) { sendMessage(true); }">
+                <button onclick="sendMessage(true)" class="btn btn-primary">Send</button>
+            </div>
+        </div>
+    </div>
+    <script src="/static/layout.js"></script>
+    <script>
+        function sendMessage(isSender) {
+            var input = document.getElementById('message-input');
+            var message = input.value.trim();
+            var chatMessages = document.getElementById('chat-messages');
+
+            if(message) {
+                var messageDiv = document.createElement('div');
+                messageDiv.classList.add('message');
+                messageDiv.classList.add(isSender ? 'sender' : 'receiver');
+
+                var textNode = document.createTextNode(message);
+                messageDiv.appendChild(textNode);
+
+                var timestampDiv = document.createElement('span');
+                timestampDiv.classList.add('timestamp');
+                var date = new Date();
+                timestampDiv.textContent = date.toLocaleTimeString();
+                messageDiv.appendChild(timestampDiv);
+
+                chatMessages.appendChild(messageDiv);
+
+                input.value = ''; // Clear input box
+                chatMessages.scrollTop = chatMessages.scrollHeight; // Scroll to the bottom
+            }
+        }
+    </script>
+</body>
+</html>
